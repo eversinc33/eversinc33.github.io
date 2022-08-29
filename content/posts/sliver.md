@@ -28,7 +28,7 @@ Start the team server and you will be greeted with a Sliver banner.
 sliver-server
 ```
 
-![](/nliver.png)
+![](/sliver.png)
 
 Now first we have to create an operator config file. These files contain authentication and connection info for your team server.
 

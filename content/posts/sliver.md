@@ -1,10 +1,10 @@
 ---
-title: "Using Sliver C2"
+title: "Getting started with the Sliver C2 Framework"
 date: 2022-08-29T21:37:49+02:00
 draft: false
 ---
 
-# Getting started with Sliver
+# Getting started with the Sliver C2 Framework
 
 [Sliver](https://github.com/BishopFox/sliver) is an open-source multi-operator command and control framework written in Go and named after [a species from Magic the Gathering](https://github.com/BishopFox/sliver/wiki#sure-but-whats-a-sliver). It is maintained by BishopFox and offers a big feature set and a beautiful CLI.
 

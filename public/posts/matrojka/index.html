@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <title>Introducing MATROJKA: Automating payload generation and AV evasion // eversinc33</title>
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <meta charset="utf-8" />
+    <meta name="generator" content="Hugo 0.101.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="author" content="eversinc33" />
+    <meta name="description" content="" />
+    <link rel="stylesheet" href="https://eversinc33.github.io/css/main.min.e6986a2a701469f29849b284212e72254b8a6c0532958634955c4eec7a92e788.css" />
+
+    
+    <meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Introducing MATROJKA: Automating payload generation and AV evasion"/>
+<meta name="twitter:description" content="Recently, in order to prepare for an internal penetration testing engagement, I wanted to automate my payload generation. In order to do so, I created a packer for executables and shellcodes, dubbed MATROJKA. After using it for some time, I decided to open source it and just released the result of this effort on github. To celebrate, I wrote my first blog post to document my reasonings of writing my own packer and the different decisions I made when building MATROJKA."/>
+
+    <meta property="og:title" content="Introducing MATROJKA: Automating payload generation and AV evasion" />
+<meta property="og:description" content="Recently, in order to prepare for an internal penetration testing engagement, I wanted to automate my payload generation. In order to do so, I created a packer for executables and shellcodes, dubbed MATROJKA. After using it for some time, I decided to open source it and just released the result of this effort on github. To celebrate, I wrote my first blog post to document my reasonings of writing my own packer and the different decisions I made when building MATROJKA." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://eversinc33.github.io/posts/matrojka/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2022-08-18T23:16:31+02:00" />
+<meta property="article:modified_time" content="2022-08-18T23:16:31+02:00" />
+
+
+
+  </head>
+  <body>
+    <header class="app-header">
+      <a href="https://eversinc33.github.io"><img class="app-header-avatar" src="https://avatars.githubusercontent.com/u/51821028?v=4" alt="eversinc33" /></a>
+      <h1>eversinc33</h1>
+      <p>learning malware development bit by bit</p>
+      <div class="app-header-social">
+        
+          <a href="https://github.com/eversinc33" target="_blank" rel="noreferrer noopener">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-github">
+  <title>My Github</title>
+  <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+</svg>
+          </a>
+        
+          <a href="https://twitter.com/eversinc33" target="_blank" rel="noreferrer noopener">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-twitter">
+  <title>My Twitter</title>
+  <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
+</svg>
+          </a>
+        
+      </div>
+    </header>
+    <main class="app-container">
+      
+  <article class="post">
+    <header class="post-header">
+      <h1 class ="post-title">Introducing MATROJKA: Automating payload generation and AV evasion</h1>
+      <div class="post-meta">
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-calendar">
+  <title>calendar</title>
+  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+</svg>
+          Aug 18, 2022
+        </div>
+        <div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-clock">
+  <title>clock</title>
+  <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>
+</svg>
+          11 min read
+        </div>
+      </div>
+    </header>
+    <div class="post-content">
+      <p>Recently, in order to prepare for an internal penetration testing engagement, I wanted to automate my payload generation. In order to do so, I created a packer for executables and shellcodes, dubbed MATROJKA. After using it for some time, I decided to open source it and just released the result of this effort on github. To celebrate, I wrote my first blog post to document my reasonings of writing my own packer and the different decisions I made when building MATROJKA.</p>
+<p>I am, however, still a beginner regarding malware development and have a lot to learn, but I hope that I can maybe encourage you to also create your own packer or shellcode loader, not only because the result is a useful tool, but also because it is fun and a opportunity to learn more about malware development (if you are already familiar with the basics).</p>
+<p>If you are totally to all this, I can highly recommend <a href="https://0xpat.github.io/Malware_development_part_1/">@0xPat&rsquo;s malware development series</a>, which will get you up and running with writing your own small droppers and loader. It certainly helped me a lot when starting out and as such I will reference it a few times in this post.</p>
+<p>If you don&rsquo;t care about my learning process and want to skip to the tool, feel free to just go to <a href="#introducing-matrojka">TLDR - Introducing MATROJKA</a>.</p>
+<h2 id="nim-packers">Nim packers</h2>
+<p>Since I&rsquo;ve been a fan of Nim for malware development for some time, the choice to write my packer in Nim was an easy one. Nim has a beautiful syntax, transpiles to C, has great C and C++ (yes, real C++) integrations and is overall very fun to write in.</p>
+<p>Here are some examples on Nim for offensive operations (taken from the infamous <a href="https://github.com/byt3bl33d3r/OffensiveNim">OffensiveNim repo</a> by @byt3bl33d3r), to show you how powerful the language can be:</p>
+<ul>
+<li><a href="https://github.com/byt3bl33d3r/OffensiveNim/blob/master/src/execute_assembly_bin.nim">Execute a .NET-assembly in Memory</a></li>
+<li><a href="https://github.com/byt3bl33d3r/OffensiveNim/blob/master/src/shellcode_bin.nim">CreateRemoteThread Shellcode Injection</a></li>
+<li><a href="https://github.com/byt3bl33d3r/OffensiveNim/blob/master/src/amsi_patch_bin.nim">Patch AMSI</a></li>
+</ul>
+<p>There are a few publicly available packers already that are based on Nim - most notably <a href="https://github.com/chvancooten/NimPackt-v1">@chvancooten</a>&rsquo;s NimPackt-v1 packer and <a href="https://github.com/icyguider/Nimcrypt2">@icyguider</a>&rsquo;s Nimcrypt2. NimPackt-v1 is a shellcode- and dotnet-assembly packer that is <a href="https://twitter.com/blackorbird/status/1553685027753365505">actively used by threat actors in the wild</a>. It&rsquo;s second version, NimPackt-NG improves upon v1, but is, as of now, still private. Nimcrypt2 is a packer for shellcode, dotnet-assemblies and additionally supports regular portable executables. Both are great tools and I certainly took quite some inspiration from both.</p>
+<p>While they are working well, I wanted to write my own variant, since they, due to being public, are fingerprinted pretty heavily by AV vendors. Plus, I wanted to include some more features (of which I will talk about below).</p>
+<p>All in all, My requirements for my packer were pretty similar to the featureset of those two. In short, what I wanted my packer to do is to&hellip;</p>
+<ul>
+<li>inject shellcode</li>
+<li>run .NET assemblies (since much of the offensive tooling <a href="https://github.com/Flangvik/SharpCollection">is written in CSharp</a>.
+<ul>
+<li>Additionally, running generic PEs becomes possible with <a href="https://github.com/TheWover/donut">Donut</a> by generating loader shellcode and injecting that instead</li>
+</ul>
+</li>
+<li>output .exe&rsquo;s and .dll&rsquo;s</li>
+<li>evade AVs and EDRs (up to the level that is needed for my engagements, which are generally not full Red Team engagements but rather internal penetration tests, where being completely undetected is not required, but getting payloads to execute is)</li>
+</ul>
+<p>With the latter came the necessity to be able to use direct syscalls instead of the usual, documented Windows APIs.</p>
+<p>Both NimPackt-v1 and Nimcrypt2 use SysWhispers (as implemented by <a href="https://github.com/ajpc500/NimlineWhispers2">NimlineWhispers2</a>) to invoke direct syscalls in order to avoid EDR-hooks - a feature which is very diserable in a packer. If you don&rsquo;t know what syscalls in Windows are, and what role they play in malware development and -detection, I can highly recommend this article by <a href="https://outflank.nl/blog/2019/06/19/red-team-tactics-combining-direct-system-calls-and-srdi-to-bypass-av-edr/">@Cn33liz</a>.</p>
+<h2 id="detecting-direct-syscalls-made-through-syswhispers">Detecting direct syscalls made through SysWhispers</h2>
+<p>The problem with using SysWhispers is that it is heavily signatured by most AVs and EDRs and most binaries generated with tools that leverage SysWhispers are easily flagged as malicious (I assume this is why Nimcrypt2 additionally supports using GetSyscallStub instead of NimlineWhispers2).</p>
+<p>One simple way to detect the use of syscalls generated by SysWhispers is to check for direct <code>syscall</code> instructions. Usually, each syscall goes through <code>NTDLL.DLL</code>, which acts as Windows&rsquo; interface to kernel mode, so direct <code>syscall</code> instructions should (in theory) never occur and are highly suspicious.</p>
+<p><img src="/objdump_syscall.png" alt="Objdump"></p>
+<p>As such, Defender instantly removes a binary that includes NimlineWhispers2 (if no further evasion is applied) upon downloading it onto a Windows host:</p>
+<p><img src="/defender.png" alt="Defender"></p>
+<p>That meant that I had to look for a different way to invoke direct syscalls for my packer. I did not want to use <a href="https://github.com/S3cur3Th1sSh1t/NimGetSyscallStub/blob/main/GetSyscallStub.nim">GetSyscallStub</a>, since it is used by Nimcrypt2 and I figured that using a different technique would make the packer&rsquo;s signatures more unique and thus less detectable.</p>
+<h2 id="retrieve-syscalls-with-hellsgate">Retrieve syscalls with HellsGate</h2>
+<p>Another technique that is widely used to retrieve syscall numbers, in order to invoke unhooked syscalls is HellsGate by @smelly__vx and @am0nsec. You basically traverse the <a href="https://malwareandstuff.com/peb-where-magic-is-stored/"><code>PEB</code> structure</a>, until you reach the module list, get <code>NTDLL.DLL</code>&rsquo;s base address and then traverse its <a href="https://dev.to/wireless90/exploring-the-export-table-windows-pe-internals-4l47"><code>Export Address Table</code></a> until you find the desired function. Then, all that is left is to extract the syscall number from that function and you have everything you need to call that syscall directly. You can read the paper at the <a href="https://github.com/vxunderground/VXUG-Papers/tree/main/Hells%20Gate">Vx-Underground Github</a>, which explains it more in-depth.</p>
+<p>Luckily, <a href="https://github.com/zimawhit3/HellsGateNim">zimawhit3</a> already implemented HellsGate in Nim, so I didn&rsquo;t have to port my C++ implementation to Nim. His implementation additionally uses <a href="https://www.ired.team/offensive-security/defense-evasion/windows-api-hashing-in-malware">API Hashing</a>. However, with HellsGate the same problem arises, since the assembly stubs that are populated with the retrieved syscall numbers also use the direct <code>syscall</code> instruction to invoke the syscall.</p>
+<h2 id="make-it-bounce">Make it bounce!</h2>
+<p>To make my syscalls seem more legit, I adjusted HellsGate, by simply replacing all <code>syscall</code> instructions with a trampoline jump - in this case a <code>JMP</code> instruction that jumps to the location of a <code>syscall</code> instruction located in <code>NTDLL.DLL</code>. This makes the syscalls seem more legit, as they originate from <code>NTDLL.DLL</code> and also avoid leaving any <code>syscall</code> instructions in the resulting binary. This technique is nothing newh, and was described e.g. in a <a href="https://passthehashbrowns.github.io/hiding-your-syscalls">blog post by @passthehashbrowns</a>. However, I saw it as a way to improve HellsGate. And thanks to Nim&rsquo;s ability to write inline assembly, implementing this was a breeze:</p>
+<p>First, I parsed <code>NTDLL.DLL</code> byte by byte until a <code>syscall</code> instruction is found. In binary representation, the <code>syscall</code> instruction and its prologue are <code>0x75 0x03 0x0F 0x05</code>, as can be seen when inspecting the DLL in x64dbg:</p>
+<p><img src="/dbg.png" alt="X64"></p>
+<p>Starting from the <code>NTDLL.DLL</code> module base address it doesn&rsquo;t take long for one to find such an address. We just take the first one we find and save it to the global variable <code>syscallJumpAddress</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nim" data-lang="nim"><span style="display:flex;"><span><span style="color:#66d9ef">proc </span><span style="color:#a6e22e">getSyscallInstructionAddress</span>(ntdllModuleBaseAddr: PVOID): ByteAddress <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">## Get The address of a syscall instruction from ntdll to make sure all syscalls go through ntdll</span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;[*] Resolving syscall...&#34;</span>
+</span></span><span style="display:flex;"><span>    echo <span style="color:#e6db74">&#34;[*] NTDDL Base: &#34;</span> <span style="color:#f92672">&amp;</span> <span style="color:#f92672">$</span><span style="color:#66d9ef">cast</span><span style="color:#f92672">[</span><span style="color:#66d9ef">int</span><span style="color:#f92672">]</span>(ntdllModuleBaseAddr).toHex
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> offset: UINT <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> <span style="color:#66d9ef">true</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> currByte <span style="color:#f92672">=</span> <span style="color:#66d9ef">cast</span><span style="color:#f92672">[</span>PDWORD<span style="color:#f92672">]</span>(ntdllModuleBaseAddr <span style="color:#f92672">+</span> offset)<span style="color:#f92672">[]</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> <span style="color:#e6db74">&#34;050F0375&#34;</span> <span style="color:#f92672">in</span> <span style="color:#f92672">$</span>currByte.toHex:
+</span></span><span style="display:flex;"><span>            echo <span style="color:#e6db74">&#34;[*] Found syscall in ntdll addr &#34;</span> <span style="color:#f92672">&amp;</span> <span style="color:#f92672">$</span><span style="color:#66d9ef">cast</span><span style="color:#f92672">[</span>ByteAddress<span style="color:#f92672">]</span>(ntdllModuleBaseAddr <span style="color:#f92672">+</span> offset).toHex <span style="color:#f92672">&amp;</span> <span style="color:#e6db74">&#34;: &#34;</span> <span style="color:#f92672">&amp;</span> <span style="color:#f92672">$</span>currByte.toHex
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">cast</span><span style="color:#f92672">[</span>ByteAddress<span style="color:#f92672">]</span>(ntdllModuleBaseAddr <span style="color:#f92672">+</span> offset) <span style="color:#f92672">+</span> sizeof(WORD)
+</span></span><span style="display:flex;"><span>        offset <span style="color:#f92672">=</span> offset <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>
+</span></span></code></pre></div><p>Now all that is left is to adjust the assembly code for each syscall and add a <code>JMP</code> to our address from above:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nim" data-lang="nim"><span style="display:flex;"><span><span style="color:#66d9ef">proc </span><span style="color:#a6e22e">NtProtectVirtualMemory</span>(ProcessHandle: Handle, BaseAddress: PVOID, NumberOfBytesToProtect: PULONG, NewAccessProtection: ULONG, OldAccessProtection: PULONG): NTSTATUS {.asmNoStackFrame.} <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">asm</span> <span style="color:#e6db74">&#34;&#34;&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        mov r10, rcx
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        mov eax, `ntProtectSyscall`
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        # syscall                     # this is what we want to avoid
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        mov r11, `syscallJumpAddress` # move syscall address into r11
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        jmp r11			      # jump to syscall address
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">        ret
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;&#34;&#34;</span>
+</span></span></code></pre></div><p>When compiling the binary, we do not have any direct syscalls left anymore. Neat!</p>
+<p><img src="/objdump.png" alt="clean objdump"></p>
+<p>If you want to play around with it, the code is hosted at <a href="https://github.com/eversinc33/HellsGate-Trampoline">https://github.com/eversinc33/HellsGate-Trampoline</a>. Unfortunately, as opposed to SysWhispers/NimlineWhispers, you will have to add the function definitions for each Syscall that you need yourself (but you can still use those that NimlineWhispers generates)</p>
+<h2 id="pack-it-up">Pack it up!</h2>
+<p>In order to automate payload generation with the HellsGate implementation above, I originally fooled around with Nim&rsquo;s metaprogramming features and tried to create a single Nim file that metaprograms itself using macros, obfuscates files at compile time, and so on, but I failed miserably. In the end, I took the easy way and stole some ideas and some code from Nimpackt-v1 and adjusted it to my own needs. <strong>Thanks Cas!</strong> I hope you don&rsquo;t mind.</p>
+<p>Nimpackt-v1 basically works by populating a Nim-template with values, such as an AES encrypted buffer of the shellcode to inject or the .NET-assembly to execute and adding additional code snippets, such as AMSI &amp; ETW patches, based upon the users configuration.</p>
+<p>Although the detection rate with HellsGate with the trampoline (BouncyGate?) instead of NimlineWhispers2 according to antiscan.me was already acceptable, many engines still flagged my payloads as malicious.</p>
+<p><img src="/antiscan.png" alt="antiscanme"></p>
+<p>Thus, I investigated and added some more evasion techniques and did some adjustments.</p>
+<h4 id="strings">Strings&hellip;</h4>
+<p>Originally I stole the encryption code from NimPackt-v1, which encrypts the binary data and bakes it into the resulting binary as a base64-string. This however was one indicator that PE-Studio alerted upon, and as such I wanted to get rid of it. Below, you can see the X byte long string, which is the embedded .NET-assembly, in this case Seatbelt:</p>
+<p><img src="/pestudio.png" alt="PEStudio"></p>
+<p>Instead, I used a byte array to store the data, which means no more suspicious strings.</p>
+<h4 id="string-encryption">String encryption</h4>
+<p>One of my favorite Nim libraries is <code>nim-strenc</code> (<a href="https://github.com/Yardanico/nim-strenc">https://github.com/Yardanico/nim-strenc</a>) and it is a staple for all my payloads. By simply importing it using <code>import strenc</code>, all strings are obfuscated during compilation. Since the encryption is based on the compilation time and date, these values change with each compilation, making it even harder to signature. Plus it is all packed in 32 lines of code.</p>
+<h4 id="sandbox-evasion--anti-debugging">Sandbox Evasion &amp; Anti-Debugging</h4>
+<p>One of my favorite topics in AV-Evasion is sandbox detection / anti-debugging. It usually manages to fool a lot of AV&rsquo;s in my experience. Besides some basic checks, I also added the ability to use Environmental Keying, by checking the name of the current user&rsquo;s domain (and assuming that the sandbox does not emulate that). Further checks include Sleep-time checks, unemulated APIs, artifacts in the path that indicate being sandboxed and a direct syscall Sleep-time check.</p>
+<p>A good collection of anti-debugging techniques can be found in this repository: <a href="https://github.com/LordNoteworthy/al-khaser">https://github.com/LordNoteworthy/al-khaser</a>.</p>
+<h4 id="signing">Signing</h4>
+<p>Back when I read through 0xPat&rsquo;s blog post <a href="https://0xpat.github.io/Malware_development_part_1/">Malware Development Part 1</a> for the first time around a year ago, I was astonished by the fact that simply signing a binary (which anyone can do) can lower the detection rate of a binary, <a href="https://businesslearning.com/wp-content/uploads/2019/06/Evading-AV.pdf">since some AV-vendors base heuristics take this into account</a>. As such, adding the ability to sign a binary was another feature I wanted to in include. On linux, this is easy to do with <a href="https://ebourg.github.io/jsign/">jsign</a>. Using the <code>--sign &lt;cert_pw&gt;</code> flag automates this process in MATROJKA.</p>
+<p>Funnily enough, this was the step that got me down from 6/7 (depending on the payload and config) to 2 detections (with Defender probably being salty that my certificate was not signed by any root of the local root CAs).</p>
+<p><img src="/antiscan2.png" alt="antiscanme"></p>
+<p>It is to note, that the payloads that are used inside MATROJKA here are all well-known and full of indicators. Further evasion can and should be done by obfuscating the embedded binary: E.g. when you are packing a .NET-assembly, remove indicators such as the developers handle or name (e.g. <code>@harmjoy</code>), the tools name (e.g. <code>Rubeus</code>) or its command line parameters (e.g. <code>/kerberoast</code>). Additionally, if the AV/EDR used in the target environment is known to you, you can tweak with the parameters until the binary is not flagged anymore, as some combinations work with one AV that do not work with others. Many AVs/EDRs rely on these indicators instead of on detecting the actual behavior (i.e. <a href="https://mgeeky.tech/protectmytooling/#introduction">they detect tools, not techniques</a>).</p>
+<h4 id="llvm-obfuscator">LLVM Obfuscator</h4>
+<p><a href="https://github.com/obfuscator-llvm/obfuscator/wiki">LLVM-Obfuscator</a> is a fork of LLVM, that applies several levels of obfuscation to the intermediate reprensentation of our code - just one step before it is translated into machine code. Since Nim transpiles to C, we can leverage the LLVM compiler platform, to obfuscate our binary.</p>
+<p>Again, 0xPat is explaining it much better than I ever would, so once again I can recommend you <a href="https://0xpat.github.io/Malware_development_part_6/">another part</a> of his Malware Development series.</p>
+<p>Building LLVM-Obfuscate on Linux is not straightforward though, so I had the best experiences with using <a href="https://github.com/nickdiego/docker-ollvm">docker-ollvm</a>, which is a docker container made to build LLVM-Obfuscate. I had to invoke compilation with</p>
+<p><code>sudo bash ollvm-build.sh ../obfuscator/ -- -DCMAKE_BUILD_TYPE=Release -DLLVM_INCLUDE_TESTS=OFF</code></p>
+<p>to get rid of all compile time errors.</p>
+<p>Unfortunately, LLVM-Obfuscator did not work with Nim&rsquo;s <code>asm</code> macro, so the <code>--syscalls</code> option can not be combined with it for now.</p>
+<h4 id="miscellaneous">Miscellaneous</h4>
+<p>Looking at the <a href="https://github.com/chvancooten/NimPackt-v1/blob/main/NimPackt.yar">yara-rule</a> that was included with NimPackt-v1, I saw that the <code>winim</code> string is used as an indicator. This string comes from the executables manifest, and as such can easily be replaced by any other string (which in turn itself can become an indicator).</p>
+<p><img src="/manifest_pe.png" alt="Manifest"></p>
+<p>Finally, for ez integration with <code>msfvenom</code>, I added the <code>--stdin</code> flag, to enable piping its output directlyinto the packer (or any other binary data from stdin):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>msfvenom -p windows/x64/exec CMD<span style="color:#f92672">=</span>calc.exe -f raw | ./pack.py shinject --stdin --syscalls
+</span></span></code></pre></div><h1 id="introducing-matrojka">Introducing MATROJKA</h1>
+<p>So after having some fun with the tool, I wanted to open-source it and work on its next iteration in private (which is gonna be C/C++ this time though). There are still some things I want to improve (and a few standard calls that I have to replace with syscalls. NtCreateUserProcess is a real pain to implement :D). Without further ado, here is MATROJKA!</p>
+<p><img src="/matrojka.png" alt="MATROJKA"></p>
+<p>Features:</p>
+<ul>
+<li>Encrypt binary/shellcode with AES and randomized keys</li>
+<li>Inject shellcode, run dotnet assemblies</li>
+<li>Patch AMSI and ETW</li>
+<li>Sandbox/VM checks
+<ul>
+<li>Optionally require user interaction and use environmental keying</li>
+</ul>
+</li>
+<li>String obfuscation</li>
+<li>Automated signing</li>
+<li>Optionally use Syscalls with HellsGate
+<ul>
+<li>All syscalls go through NTDLL.DLL, no direct <code>syscall</code> instructions</li>
+</ul>
+</li>
+<li>Obfuscate at compiler level with Obfuscate-LLVM</li>
+</ul>
+<p>Get it at <a href="https://github.com/eversinc33/MATROJKA">https://github.com/eversinc33/MATROJKA</a></p>
+<hr>
+<p>Thank you for reading. For critique, advice or general chitchat, feel free to hit me up on twitter <a href="https://twitter.com/eversinc33">@eversinc33</a></p>
+
+    </div>
+    <div class="post-footer">
+      
+    </div>
+  </article>
+
+    </main>
+  </body>
+</html>

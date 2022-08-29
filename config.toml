@@ -1,0 +1,22 @@
+baseURL = 'https://eversinc33.github.io'
+languageCode = 'en-us'
+title = 'eversinc33'
+theme = "m10c"
+[params]
+  author = "eversinc33"
+  description = "bits about malware development and penetration testing"
+  avatar = "https://avatars.githubusercontent.com/u/51821028?v=4"
+
+[[params.social]]
+  icon = "github"
+  name = "My Github"
+  url = "https://github.com/eversinc33"
+[[params.social]]
+  icon = "twitter"
+  name = "My Twitter"
+  url = "https://twitter.com/eversinc33"
+
+[params.style]
+    darkColor = "#212121"
+    lightestColor = "#d3d3d3"
+    primaryColor = "#04c311"

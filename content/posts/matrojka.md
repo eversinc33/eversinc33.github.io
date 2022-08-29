@@ -1,0 +1,195 @@
+---
+title: "Introducing MATROJKA: Automating payload generation and AV evasion"
+date: 2022-08-18T23:16:31+02:00
+draft: true
+---
+
+Recently, in order to prepare for an internal penetration testing engagement, I wanted to automate my payload generation. In order to do so, I created a packer for executables and shellcodes, dubbed MATROJKA. After using it for some time, I decided to open source it and just released the result of this effort on github. To celebrate, I wrote my first blog post to document my reasonings of writing my own packer and the different decisions I made when building MATROJKA.
+
+I am, however, still a beginner regarding malware development and have a lot to learn, but I hope that I can maybe encourage you to also create your own packer or shellcode loader, not only because the result is a useful tool, but also because it is fun and a opportunity to learn more about malware development (if you are already familiar with the basics).
+
+If you are totally to all this, I can highly recommend [@0xPat's malware development series](https://0xpat.github.io/Malware_development_part_1/), which will get you up and running with writing your own small droppers and loader. It certainly helped me a lot when starting out and as such I will reference it a few times in this post.
+
+If you don't care about my learning process and want to skip to the tool, feel free to just go to [TLDR - Introducing MATROJKA](#introducing-matrojka).
+
+## Nim packers
+
+Since I've been a fan of Nim for malware development for some time, the choice to write my packer in Nim was an easy one. Nim has a beautiful syntax, transpiles to C, has great C and C++ (yes, real C++) integrations and is overall very fun to write in.
+
+Here are some examples on Nim for offensive operations (taken from the infamous [OffensiveNim repo](https://github.com/byt3bl33d3r/OffensiveNim) by @byt3bl33d3r), to show you how powerful the language can be:
+
+* [Execute a .NET-assembly in Memory](https://github.com/byt3bl33d3r/OffensiveNim/blob/master/src/execute_assembly_bin.nim)
+* [CreateRemoteThread Shellcode Injection](https://github.com/byt3bl33d3r/OffensiveNim/blob/master/src/shellcode_bin.nim)
+* [Patch AMSI](https://github.com/byt3bl33d3r/OffensiveNim/blob/master/src/amsi_patch_bin.nim)
+
+There are a few publicly available packers already that are based on Nim - most notably [@chvancooten](https://github.com/chvancooten/NimPackt-v1)'s NimPackt-v1 packer and [@icyguider](https://github.com/icyguider/Nimcrypt2)'s Nimcrypt2. NimPackt-v1 is a shellcode- and dotnet-assembly packer that is [actively used by threat actors in the wild](https://twitter.com/blackorbird/status/1553685027753365505). It's second version, NimPackt-NG improves upon v1, but is, as of now, still private. Nimcrypt2 is a packer for shellcode, dotnet-assemblies and additionally supports regular portable executables. Both are great tools and I certainly took quite some inspiration from both.
+
+While they are working well, I wanted to write my own variant, since they, due to being public, are fingerprinted pretty heavily by AV vendors. Plus, I wanted to include some more features (of which I will talk about below).
+
+All in all, My requirements for my packer were pretty similar to the featureset of those two. In short, what I wanted my packer to do is to...
+* inject shellcode
+* run .NET assemblies (since much of the offensive tooling [is written in CSharp](https://github.com/Flangvik/SharpCollection). 
+	* Additionally, running generic PEs becomes possible with [Donut](https://github.com/TheWover/donut) by generating loader shellcode and injecting that instead
+* output .exe's and .dll's
+* evade AVs and EDRs (up to the level that is needed for my engagements, which are generally not full Red Team engagements but rather internal penetration tests, where being completely undetected is not required, but getting payloads to execute is)
+
+With the latter came the necessity to be able to use direct syscalls instead of the usual, documented Windows APIs.
+
+
+Both NimPackt-v1 and Nimcrypt2 use SysWhispers (as implemented by [NimlineWhispers2](https://github.com/ajpc500/NimlineWhispers2)) to invoke direct syscalls in order to avoid EDR-hooks - a feature which is very diserable in a packer. If you don't know what syscalls in Windows are, and what role they play in malware development and -detection, I can highly recommend this article by [@Cn33liz](https://outflank.nl/blog/2019/06/19/red-team-tactics-combining-direct-system-calls-and-srdi-to-bypass-av-edr/).
+
+## Detecting direct syscalls made through SysWhispers
+
+The problem with using SysWhispers is that it is heavily signatured by most AVs and EDRs and most binaries generated with tools that leverage SysWhispers are easily flagged as malicious (I assume this is why Nimcrypt2 additionally supports using GetSyscallStub instead of NimlineWhispers2).
+
+One simple way to detect the use of syscalls generated by SysWhispers is to check for direct `syscall` instructions. Usually, each syscall goes through `NTDLL.DLL`, which acts as Windows' interface to kernel mode, so direct `syscall` instructions should (in theory) never occur and are highly suspicious.
+
+![Objdump](/objdump_syscall.png)
+
+As such, Defender instantly removes a binary that includes NimlineWhispers2 (if no further evasion is applied) upon downloading it onto a Windows host:
+
+![Defender](/defender.png)
+
+That meant that I had to look for a different way to invoke direct syscalls for my packer. I did not want to use [GetSyscallStub](https://github.com/S3cur3Th1sSh1t/NimGetSyscallStub/blob/main/GetSyscallStub.nim), since it is used by Nimcrypt2 and I figured that using a different technique would make the packer's signatures more unique and thus less detectable.
+
+## Retrieve syscalls with HellsGate
+
+Another technique that is widely used to retrieve syscall numbers, in order to invoke unhooked syscalls is HellsGate by @smelly__vx and @am0nsec. You basically traverse the [`PEB` structure](https://malwareandstuff.com/peb-where-magic-is-stored/), until you reach the module list, get `NTDLL.DLL`'s base address and then traverse its [`Export Address Table`](https://dev.to/wireless90/exploring-the-export-table-windows-pe-internals-4l47) until you find the desired function. Then, all that is left is to extract the syscall number from that function and you have everything you need to call that syscall directly. You can read the paper at the [Vx-Underground Github](https://github.com/vxunderground/VXUG-Papers/tree/main/Hells%20Gate), which explains it more in-depth.
+
+Luckily, [zimawhit3](https://github.com/zimawhit3/HellsGateNim) already implemented HellsGate in Nim, so I didn't have to port my C++ implementation to Nim. His implementation additionally uses [API Hashing](https://www.ired.team/offensive-security/defense-evasion/windows-api-hashing-in-malware). However, with HellsGate the same problem arises, since the assembly stubs that are populated with the retrieved syscall numbers also use the direct `syscall` instruction to invoke the syscall.
+
+## Make it bounce!
+
+To make my syscalls seem more legit, I adjusted HellsGate, by simply replacing all `syscall` instructions with a trampoline jump - in this case a `JMP` instruction that jumps to the location of a `syscall` instruction located in `NTDLL.DLL`. This makes the syscalls seem more legit, as they originate from `NTDLL.DLL` and also avoid leaving any `syscall` instructions in the resulting binary. This technique is nothing newh, and was described e.g. in a [blog post by @passthehashbrowns](https://passthehashbrowns.github.io/hiding-your-syscalls). However, I saw it as a way to improve HellsGate. And thanks to Nim's ability to write inline assembly, implementing this was a breeze:
+
+First, I parsed `NTDLL.DLL` byte by byte until a `syscall` instruction is found. In binary representation, the `syscall` instruction and its prologue are `0x75 0x03 0x0F 0x05`, as can be seen when inspecting the DLL in x64dbg:
+
+![X64](/dbg.png)
+
+Starting from the `NTDLL.DLL` module base address it doesn't take long for one to find such an address. We just take the first one we find and save it to the global variable `syscallJumpAddress`:
+
+```nim
+proc getSyscallInstructionAddress(ntdllModuleBaseAddr: PVOID): ByteAddress =
+    ## Get The address of a syscall instruction from ntdll to make sure all syscalls go through ntdll
+    echo "[*] Resolving syscall..."
+    echo "[*] NTDDL Base: " & $cast[int](ntdllModuleBaseAddr).toHex
+    var offset: UINT = 0
+    while true:
+        var currByte = cast[PDWORD](ntdllModuleBaseAddr + offset)[]
+        if "050F0375" in $currByte.toHex:
+            echo "[*] Found syscall in ntdll addr " & $cast[ByteAddress](ntdllModuleBaseAddr + offset).toHex & ": " & $currByte.toHex
+            return cast[ByteAddress](ntdllModuleBaseAddr + offset) + sizeof(WORD)
+        offset = offset + 1
+
+```
+
+Now all that is left is to adjust the assembly code for each syscall and add a `JMP` to our address from above:
+
+```nim
+proc NtProtectVirtualMemory(ProcessHandle: Handle, BaseAddress: PVOID, NumberOfBytesToProtect: PULONG, NewAccessProtection: ULONG, OldAccessProtection: PULONG): NTSTATUS {.asmNoStackFrame.} =
+    asm """
+        mov r10, rcx
+        mov eax, `ntProtectSyscall`
+        # syscall                     # this is what we want to avoid
+        mov r11, `syscallJumpAddress` # move syscall address into r11
+        jmp r11			      # jump to syscall address
+        ret
+    """
+```
+
+When compiling the binary, we do not have any direct syscalls left anymore. Neat!
+
+![clean objdump](/objdump.png)
+
+If you want to play around with it, the code is hosted at https://github.com/eversinc33/HellsGate-Trampoline. Unfortunately, as opposed to SysWhispers/NimlineWhispers, you will have to add the function definitions for each Syscall that you need yourself (but you can still use those that NimlineWhispers generates)
+
+## Pack it up!
+
+In order to automate payload generation with the HellsGate implementation above, I originally fooled around with Nim's metaprogramming features and tried to create a single Nim file that metaprograms itself using macros, obfuscates files at compile time, and so on, but I failed miserably. In the end, I took the easy way and stole some ideas and some code from Nimpackt-v1 and adjusted it to my own needs. **Thanks Cas!** I hope you don't mind.
+
+Nimpackt-v1 basically works by populating a Nim-template with values, such as an AES encrypted buffer of the shellcode to inject or the .NET-assembly to execute and adding additional code snippets, such as AMSI & ETW patches, based upon the users configuration. 
+
+Although the detection rate with HellsGate with the trampoline (BouncyGate?) instead of NimlineWhispers2 according to antiscan.me was already acceptable, many engines still flagged my payloads as malicious. 
+
+![antiscanme](/antiscan.png)
+
+Thus, I investigated and added some more evasion techniques and did some adjustments.
+
+#### Strings...
+
+Originally I stole the encryption code from NimPackt-v1, which encrypts the binary data and bakes it into the resulting binary as a base64-string. This however was one indicator that PE-Studio alerted upon, and as such I wanted to get rid of it. Below, you can see the X byte long string, which is the embedded .NET-assembly, in this case Seatbelt:
+
+![PEStudio](/pestudio.png)
+
+Instead, I used a byte array to store the data, which means no more suspicious strings.
+
+#### String encryption
+
+One of my favorite Nim libraries is `nim-strenc` (https://github.com/Yardanico/nim-strenc) and it is a staple for all my payloads. By simply importing it using `import strenc`, all strings are obfuscated during compilation. Since the encryption is based on the compilation time and date, these values change with each compilation, making it even harder to signature. Plus it is all packed in 32 lines of code. 
+
+#### Sandbox Evasion & Anti-Debugging
+
+One of my favorite topics in AV-Evasion is sandbox detection / anti-debugging. It usually manages to fool a lot of AV's in my experience. Besides some basic checks, I also added the ability to use Environmental Keying, by checking the name of the current user's domain (and assuming that the sandbox does not emulate that). Further checks include Sleep-time checks, unemulated APIs, artifacts in the path that indicate being sandboxed and a direct syscall Sleep-time check.
+
+A good collection of anti-debugging techniques can be found in this repository: [https://github.com/LordNoteworthy/al-khaser](https://github.com/LordNoteworthy/al-khaser).
+
+#### Signing
+
+Back when I read through 0xPat's blog post [Malware Development Part 1](https://0xpat.github.io/Malware_development_part_1/) for the first time around a year ago, I was astonished by the fact that simply signing a binary (which anyone can do) can lower the detection rate of a binary, [since some AV-vendors base heuristics take this into account](https://businesslearning.com/wp-content/uploads/2019/06/Evading-AV.pdf). As such, adding the ability to sign a binary was another feature I wanted to in include. On linux, this is easy to do with [jsign](https://ebourg.github.io/jsign/). Using the `--sign <cert_pw>` flag automates this process in MATROJKA.
+
+Funnily enough, this was the step that got me down from 6/7 (depending on the payload and config) to 2 detections (with Defender probably being salty that my certificate was not signed by any root of the local root CAs). 
+
+![antiscanme](/antiscan2.png)
+
+It is to note, that the payloads that are used inside MATROJKA here are all well-known and full of indicators. Further evasion can and should be done by obfuscating the embedded binary: E.g. when you are packing a .NET-assembly, remove indicators such as the developers handle or name (e.g. `@harmjoy`), the tools name (e.g. `Rubeus`) or its command line parameters (e.g. `/kerberoast`). Additionally, if the AV/EDR used in the target environment is known to you, you can tweak with the parameters until the binary is not flagged anymore, as some combinations work with one AV that do not work with others. Many AVs/EDRs rely on these indicators instead of on detecting the actual behavior (i.e. [they detect tools, not techniques](https://mgeeky.tech/protectmytooling/#introduction)).
+
+#### LLVM Obfuscator
+
+[LLVM-Obfuscator](https://github.com/obfuscator-llvm/obfuscator/wiki) is a fork of LLVM, that applies several levels of obfuscation to the intermediate reprensentation of our code - just one step before it is translated into machine code. Since Nim transpiles to C, we can leverage the LLVM compiler platform, to obfuscate our binary. 
+
+Again, 0xPat is explaining it much better than I ever would, so once again I can recommend you [another part](https://0xpat.github.io/Malware_development_part_6/) of his Malware Development series.
+
+Building LLVM-Obfuscate on Linux is not straightforward though, so I had the best experiences with using [docker-ollvm](https://github.com/nickdiego/docker-ollvm), which is a docker container made to build LLVM-Obfuscate. I had to invoke compilation with 
+
+`sudo bash ollvm-build.sh ../obfuscator/ -- -DCMAKE_BUILD_TYPE=Release -DLLVM_INCLUDE_TESTS=OFF`
+
+to get rid of all compile time errors.
+
+Unfortunately, LLVM-Obfuscator did not work with Nim's `asm` macro, so the `--syscalls` option can not be combined with it for now.
+
+#### Miscellaneous
+
+Looking at the [yara-rule](https://github.com/chvancooten/NimPackt-v1/blob/main/NimPackt.yar) that was included with NimPackt-v1, I saw that the `winim` string is used as an indicator. This string comes from the executables manifest, and as such can easily be replaced by any other string (which in turn itself can become an indicator). 
+
+![Manifest](/manifest_pe.png)
+
+Finally, for ez integration with `msfvenom`, I added the `--stdin` flag, to enable piping its output directlyinto the packer (or any other binary data from stdin):
+
+```bash
+msfvenom -p windows/x64/exec CMD=calc.exe -f raw | ./pack.py shinject --stdin --syscalls
+```
+
+# Introducing MATROJKA
+
+So after having some fun with the tool, I wanted to open-source it and work on its next iteration in private (which is gonna be C/C++ this time though). There are still some things I want to improve (and a few standard calls that I have to replace with syscalls. NtCreateUserProcess is a real pain to implement :D). Without further ado, here is MATROJKA!
+
+![MATROJKA](/matrojka.png)
+
+Features:
+
+* Encrypt binary/shellcode with AES and randomized keys
+* Inject shellcode, run dotnet assemblies
+* Patch AMSI and ETW
+* Sandbox/VM checks
+	* Optionally require user interaction and use environmental keying
+* String obfuscation
+* Automated signing
+* Optionally use Syscalls with HellsGate
+	* All syscalls go through NTDLL.DLL, no direct `syscall` instructions
+* Obfuscate at compiler level with Obfuscate-LLVM
+
+Get it at [https://github.com/eversinc33/MATROJKA](https://github.com/eversinc33/MATROJKA)
+
+________
+
+Thank you for reading. For critique, advice or general chitchat, feel free to hit me up on twitter [@eversinc33](https://twitter.com/eversinc33)

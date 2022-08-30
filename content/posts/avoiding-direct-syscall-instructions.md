@@ -1,6 +1,6 @@
 ---
 title: "Avoiding direct syscall assembly instructions with trampolines"
-date: 2022-08-30T17:16:31+02:00
+date: 2022-08-30T16:16:31+02:00
 draft: false
 ---
 

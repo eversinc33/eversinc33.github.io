@@ -28,11 +28,13 @@ That meant that I had to look for a different way to invoke direct syscalls for 
 
 Another technique that is widely used to retrieve syscall numbers, in order to invoke unhooked syscalls is HellsGate by @smelly__vx and @am0nsec. You basically traverse the [`PEB` structure](https://malwareandstuff.com/peb-where-magic-is-stored/), until you reach the module list, get `NTDLL.DLL`'s base address and then traverse its [`Export Address Table`](https://dev.to/wireless90/exploring-the-export-table-windows-pe-internals-4l47) until you find the desired function. Then, all that is left is to extract the syscall number from that function and you have everything you need to call that syscall directly. You can read the paper at the [Vx-Underground Github](https://github.com/vxunderground/VXUG-Papers/tree/main/Hells%20Gate), which explains it more in-depth.
 
-Luckily, [zimawhit3](https://github.com/zimawhit3/HellsGateNim) already implemented HellsGate in Nim, so I didn't have to port my C++ implementation to Nim. His implementation additionally uses [API Hashing](https://www.ired.team/offensive-security/defense-evasion/windows-api-hashing-in-malware). However, with HellsGate the same problem arises, since the assembly stubs that are populated with the retrieved syscall numbers also use the direct `syscall` instruction to invoke the syscall.
+Luckily, [zimawhit3](https://github.com/zimawhit3/HellsGateNim) already implemented HellsGate in Nim, so I didn't have to port my C++ implementation to Nim. His implementation additionally uses [API Hashing](https://www.ired.team/offensive-security/defense-evasion/windows-api-hashing-in-malware). 
+
+However, with HellsGate the same problem arises, since the assembly stubs that are populated with the retrieved syscall numbers also use the direct `syscall` instruction to invoke the syscall.
 
 ## Make it bounce!
 
-To make my syscalls seem more legit, I adjusted HellsGate, by simply replacing all `syscall` instructions with a trampoline jump - in this case a `JMP` instruction that jumps to the location of a `syscall` instruction located in `NTDLL.DLL`. This makes the syscalls seem more legit, as they originate from `NTDLL.DLL` and also avoid leaving any `syscall` instructions in the resulting binary. This technique is nothing newh, and was described e.g. in a [blog post by @passthehashbrowns](https://passthehashbrowns.github.io/hiding-your-syscalls). However, I saw it as a way to improve HellsGate. And thanks to Nim's ability to write inline assembly, implementing this was a breeze:
+To make my syscalls seem more legit, I adjusted HellsGate, by simply replacing all `syscall` instructions with a trampoline jump - in this case a `JMP` instruction that jumps to the location of a `syscall` instruction located in `NTDLL.DLL`. This makes the syscalls seem more legit, as they originate from `NTDLL.DLL` and also avoid leaving any `syscall` instructions in the resulting binary. This technique is nothing new though, and was described e.g. in a [blog post by @passthehashbrowns](https://passthehashbrowns.github.io/hiding-your-syscalls). However, I saw it as a way to improve HellsGate. And thanks to Nim's ability to write inline assembly, implementing this was a breeze:
 
 First, I parsed `NTDLL.DLL` byte by byte until a `syscall` instruction is found. In binary representation, the `syscall` instruction and its prologue are `0x75 0x03 0x0F 0x05`, as can be seen when inspecting the DLL in x64dbg:
 
@@ -73,4 +75,6 @@ When compiling the binary, we do not have any direct syscalls left anymore, whic
 
 ![clean objdump](/objdump.png)
 
-The code for this technique is hosted at https://github.com/eversinc33/BouncyGate. Unfortunately, as opposed to SysWhispers/NimlineWhispers, you will have to add the function definitions for each Syscall that you need yourself (but you can still use those that NimlineWhispers generates). Happy Hacking!
+The code for this technique is hosted at https://github.com/eversinc33/BouncyGate. Unfortunately, as opposed to SysWhispers/NimlineWhispers, you will have to add the function definitions for each Syscall that you need yourself (but you can still use those that NimlineWhispers generates). 
+
+Happy Hacking!

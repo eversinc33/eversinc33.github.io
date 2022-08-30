@@ -1,5 +1,5 @@
 ---
-title: "Avoiding direct syscall assembly instructions with trampolines"
+title: "Avoiding direct syscall instructions by using trampolines"
 date: 2022-08-30T16:16:31+02:00
 draft: false
 ---
@@ -38,20 +38,13 @@ That meant that I had to look for a different way to invoke direct syscalls for 
 
 ## Retrieve syscalls with HellsGate
 
-Another technique that is widely used to retrieve syscall numbers, in order to invoke unhooked syscalls is HellsGate by @smelly__vx and @am0nsec. You basically traverse the [`PEB` structure](https://malwareandstuff.com/peb-where-magic-is-stored/), until you reach the module list, get `NTDLL.DLL`'s base address and then traverse its [`Export Address Table`](https://dev.to/wireless90/exploring-the-export-table-windows-pe-internals-4l47) until you find the desired function. Then, all that is left is to extract the syscall number from that function and you have everything you need to call that syscall directly. 
-
-The retrieved syscall number is then inserted into a syscall stub like the following:
-
-
-You can read the paper at the [Vx-Underground Github](https://github.com/vxunderground/VXUG-Papers/tree/main/Hells%20Gate), which explains it more in-depth.
-
-Luckily, [zimawhit3](https://github.com/zimawhit3/HellsGateNim) already implemented HellsGate in Nim, so I didn't have to port my C++ implementation to Nim. His implementation additionally uses [API Hashing](https://www.ired.team/offensive-security/defense-evasion/windows-api-hashing-in-malware). 
+Another technique that is widely used to retrieve syscall numbers, in order to invoke unhooked syscalls is HellsGate by @smelly__vx and @am0nsec. You basically traverse the [`PEB` structure](https://malwareandstuff.com/peb-where-magic-is-stored/), until you reach the module list, get `NTDLL.DLL`'s base address and then traverse its [`Export Address Table`](https://dev.to/wireless90/exploring-the-export-table-windows-pe-internals-4l47) until you find the desired function. Then, all that is left is to extract the syscall number from that function and you have everything you need to call that syscall directly, by using a syscall stub like above. You can read the paper at the [Vx-Underground Github](https://github.com/vxunderground/VXUG-Papers/tree/main/Hells%20Gate), which explains it more in-depth. Luckily, [zimawhit3](https://github.com/zimawhit3/HellsGateNim) already implemented HellsGate in Nim. His implementation additionally uses [API Hashing](https://www.ired.team/offensive-security/defense-evasion/windows-api-hashing-in-malware). 
 
 However, with HellsGate the same problem arises, since the assembly stubs that are populated with the retrieved syscall numbers also use the direct `syscall` instruction to invoke the syscall.
 
 ## Make it bounce!
 
-To make my syscalls seem more legit, I adjusted HellsGate, by simply replacing all `syscall` instructions with a trampoline jump - in this case a `JMP` instruction that jumps to the location of a `syscall` instruction located in `NTDLL.DLL`. This makes the syscalls seem more legit, as they originate from `NTDLL.DLL` and also avoids leaving any `syscall` instructions in the resulting binary. This technique is nothing new though, and was described e.g. in a [blog post by @passthehashbrowns](https://passthehashbrowns.github.io/hiding-your-syscalls). In fact, I later found out that this is what [SysWhispers3](https://klezvirus.github.io/RedTeaming/AV_Evasion/NoSysWhisper/) and [NimlineWhispers3](https://github.com/klezVirus/NimlineWhispers3) ended up using as a remediation (well...). However, I still see it as a way to improve HellsGate and make the resulting payload be more unique. 
+To make my syscalls seem more legit, I adjusted HellsGate, by simply replacing all `syscall` instructions with a trampoline jump - in this case a `JMP` instruction that jumps to the location of a `syscall` instruction located in `NTDLL.DLL`. This makes the syscalls seem more legit, as they originate from `NTDLL.DLL` and also avoids leaving any `syscall` instructions in the resulting binary. This technique is nothing new though, and was described e.g. in a [blog post by @passthehashbrowns](https://passthehashbrowns.github.io/hiding-your-syscalls). In fact, I later found out that this is what [SysWhispers3](https://klezvirus.github.io/RedTeaming/AV_Evasion/NoSysWhisper/) and [NimlineWhispers3](https://github.com/klezVirus/NimlineWhispers3) ended up using as a remediation (well...). However, I still see it as a way to improve HellsGate. 
 
 Thanks to Nim's ability to write inline assembly, implementing this was a breeze:
 

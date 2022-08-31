@@ -19,4 +19,4 @@ theme = "m10c"
 [params.style]
     darkColor = "#212121"
     lightestColor = "#d3d3d3"
-    primaryColor = "#04c311"
+    primaryColor = "#974EDE"

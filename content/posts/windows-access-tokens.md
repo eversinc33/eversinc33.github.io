@@ -35,7 +35,7 @@ This primary token can be viewed in process hacker:
 
 ![](/token.png)
 
-If however a thread of a processes needs to impersonate a different user (e.g. a server accessing resources for a client), an impersonation token can be set for this thread. This will allow the thread to access resources that the user and the privileges that are described in that impersonation token can access. This is the reason why service accounts often have the `SeImpersonate` privilege set, while normal users usually should not. Imagine a web server service account, that has to access an MSSQL server on behalf of a user that connects to the service - thats where impersonation comes into play.
+If however a thread of a process needs to impersonate a different user (e.g. a server accessing resources for a client), an impersonation token can be set for this thread. This will allow the thread to access resources that the user and the privileges that are described in that impersonation token can access. This is the reason why service accounts often have the `SeImpersonate` privilege set, while normal users usually should not. Imagine a web server service account, that has to access an MSSQL server on behalf of a user that connects to the service - thats where impersonation comes into play.
 
 An existing token (primary or impersonation) can be duplicated into either a primary or and impersonation token with the Win32 API function [`DuplicateTokenEx`](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetokenex):
 

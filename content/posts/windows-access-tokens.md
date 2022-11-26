@@ -10,7 +10,7 @@ Although often using tokens and knowing that there are primary and impersonation
 
 To be able to play around with tokens in a hands-on manner, a few weeks ago, I created a little tool (with a slightly megalomanic name) that can juggle around windows access tokens, which I am gonna use to visualize the techniques below. The tool can be found at https://github.com/eversinc33/godmode. 
 
-Windows access tokens are a great subject to learn as a pentester to get involved with windows APIs programming (aside from the usual process injection calls). At the end of this small post you will hopefully understand the basics of windows access tokens and gain some insight on the inner workings of windows when abusing them.
+Windows access tokens are a great subject to learn as a pentester to get involved with windows API programming (aside from the usual process injection calls). At the end of this small post you will hopefully understand the basics of windows access tokens and gain some insight on the inner workings of windows when abusing them.
 
 I encourage you to implement some of this yourself, if you are interested. Don't use my tool for exploitation, it is just for exploration. If you just want to visualize tokens and play with them, without implementing anything, [TokenUniverse](https://github.com/diversenok/TokenUniverse) is a great tool to use. If you want to exploit this, use the tools you have already been using, or the ones I am referencing at the end of the post.
 
@@ -35,7 +35,7 @@ This primary token can be viewed in process hacker:
 
 ![](/token.png)
 
-If however a thread of one a processes needs to impersonate a different user (e.g. a server accessing resources for a client), an impersonation token can be set for this thread. This will allow the thread to access resources that the user and the privileges that are described in that impersonation token can access. This is the reason why service accounts often have the `SeImpersonate` privilege set, while normal users usually should not. Imagine a web server service account, that has to access an MSSQL server on behalf of a user that connects to the service - thats where impersonation comes into play.
+If however a thread of a processes needs to impersonate a different user (e.g. a server accessing resources for a client), an impersonation token can be set for this thread. This will allow the thread to access resources that the user and the privileges that are described in that impersonation token can access. This is the reason why service accounts often have the `SeImpersonate` privilege set, while normal users usually should not. Imagine a web server service account, that has to access an MSSQL server on behalf of a user that connects to the service - thats where impersonation comes into play.
 
 An existing token (primary or impersonation) can be duplicated into either a primary or and impersonation token with the Win32 API function [`DuplicateTokenEx`](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetokenex):
 

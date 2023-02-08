@@ -87,7 +87,7 @@ When compiling the binary, we do not have any direct syscalls left anymore, whic
 
 ![clean objdump](/objdump.png)
 
-Grabbing the first one available worked fine for me. One idea for improvement that is left is to control what `syscall` instruction we jump to and use this to e.g. fool an analyst that only observes the location of the syscall.
+Grabbing the first one available worked fine for me. One idea for improvement that is left is to control what `syscall` instruction we jump to and use this to e.g. fool an analyst that only observes the location of the syscall. EDIT 02/08/23: I just pushed changes that fix this. Now the `syscall` instruction that is corresponding to the actual syscall is taken instead.
 
 The code for this technique is hosted at https://github.com/eversinc33/BouncyGate. Unfortunately, as opposed to SysWhispers/NimlineWhispers, you will have to add the function definitions for each Syscall that you need yourself (but you can still use those that NimlineWhispers generates). 
 

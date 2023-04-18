@@ -15,6 +15,10 @@ theme = "m10c"
   icon = "twitter"
   name = "My Twitter"
   url = "https://twitter.com/eversinc33"
+[[params.social]]
+  icon = "linkedin"
+  name = "My linkedin"
+  url = "https://www.linkedin.com/in/sven-rath-4212ba1b8/"
 
 [params.style]
     darkColor = "#212121"
